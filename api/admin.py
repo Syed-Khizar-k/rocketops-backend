@@ -3,7 +3,7 @@ from django import forms
 from django.contrib import admin
 from django.utils.html import format_html
 from django.http import HttpResponse
-from .models import TeamMember, Service, ServiceFeature, Product, ContactSubmission
+from .models import TeamMember, Service, ServiceFeature, Product, ContactSubmission, CompanyCategory, CompanyLogo, AIProvider, Testimonial, Faq, CaseStudy
 
 ICON_CHOICES = [
     ('IconGlobal',  'IconGlobal  — Globe / General'),
@@ -243,3 +243,92 @@ class ContactSubmissionAdmin(admin.ModelAdmin):
         )
     submitted_at.short_description = 'Submitted'
     submitted_at.admin_order_field = 'created_at'
+
+
+# ─────────────────────────────────────────────
+#  COMPANY LOGOS
+# ─────────────────────────────────────────────
+class CompanyLogoInline(admin.TabularInline):
+    model = CompanyLogo
+    extra = 1
+    fields = ('name', 'image', 'alt_text', 'display_order')
+    classes = ('collapse',)
+
+
+@admin.register(CompanyCategory)
+class CompanyCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'display_order', 'logo_count')
+    list_editable = ('display_order',)
+    inlines = [CompanyLogoInline]
+    ordering = ('display_order',)
+    search_fields = ('name',)
+
+    def logo_count(self, obj):
+        count = obj.logos.count()
+        return format_html(
+            '<span style="background:#4f46e5;color:#fff;padding:2px 10px;'
+            'border-radius:20px;font-size:11px;font-weight:600;">'
+            '{} logos</span>',
+            count,
+        )
+    logo_count.short_description = 'Logos'
+
+
+@admin.register(CompanyLogo)
+class CompanyLogoAdmin(admin.ModelAdmin):
+    list_display = ('image_thumb', 'name', 'category', 'display_order')
+    list_display_links = ('name',)
+    list_editable = ('display_order',)
+    list_filter = ('category',)
+    search_fields = ('name', 'category__name')
+    ordering = ('category', 'display_order')
+
+    def image_thumb(self, obj):
+        if obj.image:
+            return format_html(
+                '<div style="background:#0a0a0a; padding:6px; border-radius:6px; display:inline-block; border:1px solid #333;">'
+                '<img src="{}" style="height:30px; width:auto; max-width:120px; object-fit:contain;" />'
+                '</div>',
+                obj.image.url,
+            )
+        return format_html('<span style="color:#555;font-size:11px;">No logo</span>')
+    image_thumb.short_description = 'Preview'
+
+
+@admin.register(AIProvider)
+class AIProviderAdmin(admin.ModelAdmin):
+    list_display = ('name', 'display_order')
+    list_editable = ('display_order',)
+    ordering = ('display_order',)
+    search_fields = ('name',)
+
+
+@admin.register(Testimonial)
+class TestimonialAdmin(admin.ModelAdmin):
+    list_display = ('author', 'title', 'quote_preview', 'display_order', 'is_active')
+    list_editable = ('display_order', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('author', 'title', 'quote')
+    ordering = ('display_order', 'id')
+
+    def quote_preview(self, obj):
+        return (obj.quote[:80] + '…') if len(obj.quote) > 80 else obj.quote
+    quote_preview.short_description = 'Quote'
+
+
+@admin.register(Faq)
+class FaqAdmin(admin.ModelAdmin):
+    list_display = ('question', 'display_order', 'is_active')
+    list_editable = ('display_order', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('question', 'answer')
+    ordering = ('display_order', 'id')
+
+
+@admin.register(CaseStudy)
+class CaseStudyAdmin(admin.ModelAdmin):
+    list_display = ('title', 'category', 'logo_text', 'display_order', 'is_active')
+    list_editable = ('display_order', 'is_active')
+    list_filter = ('is_active', 'category')
+    search_fields = ('title', 'logo_text', 'category')
+    ordering = ('display_order', 'id')

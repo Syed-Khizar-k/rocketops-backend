@@ -1,10 +1,15 @@
 from rest_framework import viewsets, mixins
-from .models import TeamMember, Service, Product, ContactSubmission
+from .models import TeamMember, Service, Product, ContactSubmission, CompanyCategory, AIProvider, Testimonial, Faq, CaseStudy
 from .serializers import (
-    TeamMemberSerializer, 
-    ServiceSerializer, 
-    ProductSerializer, 
-    ContactSubmissionSerializer
+    TeamMemberSerializer,
+    ServiceSerializer,
+    ProductSerializer,
+    ContactSubmissionSerializer,
+    CompanyCategorySerializer,
+    AIProviderSerializer,
+    TestimonialSerializer,
+    FaqSerializer,
+    CaseStudySerializer,
 )
 
 class TeamMemberViewSet(viewsets.ReadOnlyModelViewSet):
@@ -23,3 +28,26 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
 class ContactSubmissionViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
     queryset = ContactSubmission.objects.all()
     serializer_class = ContactSubmissionSerializer
+
+class CompanyCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = CompanyCategory.objects.all().prefetch_related('logos')
+    serializer_class = CompanyCategorySerializer
+
+class AIProviderViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = AIProvider.objects.all()
+    serializer_class = AIProviderSerializer
+
+
+class TestimonialViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Testimonial.objects.filter(is_active=True)
+    serializer_class = TestimonialSerializer
+
+
+class FaqViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Faq.objects.filter(is_active=True)
+    serializer_class = FaqSerializer
+
+
+class CaseStudyViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = CaseStudy.objects.filter(is_active=True)
+    serializer_class = CaseStudySerializer
