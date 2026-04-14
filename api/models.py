@@ -45,6 +45,10 @@ class Product(models.Model):
     detailed_description = models.TextField(blank=True, null=True, help_text="Long description for the details page")
     image = models.ImageField(upload_to='products/', help_text="Main thumbnail image")
     link = models.URLField()
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['display_order', 'id']
 
     def save(self, *args, **kwargs):
         if not self.slug:

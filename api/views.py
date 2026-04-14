@@ -22,7 +22,7 @@ class ServiceViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'slug'
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Product.objects.all().order_by('id')
+    queryset = Product.objects.all().order_by('display_order', 'id')
     serializer_class = ProductSerializer
     lookup_field = 'slug'
 

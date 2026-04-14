@@ -155,12 +155,13 @@ class ProductImageInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('image_thumb', 'title', 'slug', 'description_preview', 'visit_link')
+    list_display = ('image_thumb', 'title', 'slug', 'description_preview', 'display_order', 'visit_link')
     list_display_links = ('title',)
+    list_editable = ('display_order',)
     prepopulated_fields = {'slug': ('title',)}
     inlines = [ProductImageInline]
     search_fields = ('title', 'slug', 'description')
-    ordering = ('id',)
+    ordering = ('display_order', 'id')
     list_per_page = 20
     actions = [export_as_csv]
 
