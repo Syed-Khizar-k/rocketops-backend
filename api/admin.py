@@ -3,7 +3,7 @@ from django import forms
 from django.contrib import admin
 from django.utils.html import format_html
 from django.http import HttpResponse
-from .models import TeamMember, Service, ServiceFeature, Product, ContactSubmission, CompanyCategory, CompanyLogo, AIProvider, Testimonial, Faq, CaseStudy
+from .models import TeamMember, Service, ServiceFeature, Product, ProductImage, ContactSubmission, CompanyCategory, CompanyLogo, AIProvider, Testimonial, Faq, CaseStudy
 
 ICON_CHOICES = [
     ('IconGlobal',  'IconGlobal  — Globe / General'),
@@ -145,13 +145,21 @@ class ServiceAdmin(admin.ModelAdmin):
 
 
 # ─────────────────────────────────────────────
-#  PRODUCT
+#  PRODUCT + GALLERY INLINE
 # ─────────────────────────────────────────────
+class ProductImageInline(admin.TabularInline):
+    model = ProductImage
+    extra = 1
+    fields = ('image', 'alt_text', 'display_order')
+    show_change_link = True
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('image_thumb', 'title', 'description_preview', 'visit_link')
+    list_display = ('image_thumb', 'title', 'slug', 'description_preview', 'visit_link')
     list_display_links = ('title',)
-    search_fields = ('title', 'description')
+    prepopulated_fields = {'slug': ('title',)}
+    inlines = [ProductImageInline]
+    search_fields = ('title', 'slug', 'description')
     ordering = ('id',)
     list_per_page = 20
     actions = [export_as_csv]
@@ -327,8 +335,8 @@ class FaqAdmin(admin.ModelAdmin):
 
 @admin.register(CaseStudy)
 class CaseStudyAdmin(admin.ModelAdmin):
-    list_display = ('title', 'category', 'logo_text', 'display_order', 'is_active')
+    list_display = ('title', 'category', 'product', 'logo_text', 'display_order', 'is_active')
     list_editable = ('display_order', 'is_active')
-    list_filter = ('is_active', 'category')
+    list_filter = ('is_active', 'category', 'product')
     search_fields = ('title', 'logo_text', 'category')
     ordering = ('display_order', 'id')

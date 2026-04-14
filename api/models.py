@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils.text import slugify
 
 class TeamMember(models.Model):
     name = models.CharField(max_length=100)
@@ -39,12 +40,31 @@ class ServiceFeature(models.Model):
 
 class Product(models.Model):
     title = models.CharField(max_length=200)
+    slug = models.SlugField(unique=True, blank=True, max_length=250)
     description = models.TextField()
-    image = models.ImageField(upload_to='products/')
+    detailed_description = models.TextField(blank=True, null=True, help_text="Long description for the details page")
+    image = models.ImageField(upload_to='products/', help_text="Main thumbnail image")
     link = models.URLField()
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(f"explore-{self.title}")
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.title
+
+class ProductImage(models.Model):
+    product = models.ForeignKey(Product, related_name='gallery', on_delete=models.CASCADE)
+    image = models.ImageField(upload_to='products/gallery/')
+    alt_text = models.CharField(max_length=200, blank=True)
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['display_order']
+
+    def __str__(self):
+        return f"{self.product.title} - Image {self.id}"
 
 class ContactSubmission(models.Model):
     first_name = models.CharField(max_length=100)
@@ -119,7 +139,8 @@ class CaseStudy(models.Model):
     title = models.CharField(max_length=300)
     logo_text = models.CharField(max_length=200, blank=True, default='', help_text="Text shown in the card logo area")
     image = models.ImageField(upload_to='case_studies/', blank=True, null=True)
-    link = models.URLField(blank=True, default='')
+    product = models.ForeignKey(Product, related_name='case_studies', on_delete=models.SET_NULL, null=True, blank=True, help_text="Link this case study to a dynamic product page")
+    link = models.URLField(blank=True, default='', help_text="External link (fallback if no product linked)")
     display_order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
 

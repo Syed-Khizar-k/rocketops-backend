@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import TeamMember, Service, ServiceFeature, Product, ContactSubmission, CompanyCategory, CompanyLogo, AIProvider, Testimonial, Faq, CaseStudy
+from .models import TeamMember, Service, ServiceFeature, Product, ProductImage, ContactSubmission, CompanyCategory, CompanyLogo, AIProvider, Testimonial, Faq, CaseStudy
 
 
 class TeamMemberSerializer(serializers.ModelSerializer):
@@ -41,12 +41,28 @@ class ServiceSerializer(serializers.ModelSerializer):
         return None
 
 
-class ProductSerializer(serializers.ModelSerializer):
+class ProductImageSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
 
     class Meta:
+        model = ProductImage
+        fields = ['id', 'image', 'alt_text', 'display_order']
+
+    def get_image(self, obj):
+        request = self.context.get('request')
+        if obj.image:
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
+
+class ProductSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+    gallery = ProductImageSerializer(many=True, read_only=True)
+
+    class Meta:
         model = Product
-        fields = ['id', 'title', 'description', 'image', 'link']
+        fields = ['id', 'title', 'slug', 'description', 'detailed_description', 'image', 'gallery', 'link']
 
     def get_image(self, obj):
         request = self.context.get('request')
@@ -105,10 +121,11 @@ class FaqSerializer(serializers.ModelSerializer):
 
 class CaseStudySerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
+    product_slug = serializers.CharField(source='product.slug', read_only=True)
 
     class Meta:
         model = CaseStudy
-        fields = ['id', 'category', 'title', 'logo_text', 'image', 'link', 'display_order']
+        fields = ['id', 'category', 'title', 'logo_text', 'image', 'product_slug', 'link', 'display_order']
 
     def get_image(self, obj):
         request = self.context.get('request')

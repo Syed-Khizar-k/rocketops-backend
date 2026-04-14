@@ -24,6 +24,7 @@ class ServiceViewSet(viewsets.ReadOnlyModelViewSet):
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Product.objects.all().order_by('id')
     serializer_class = ProductSerializer
+    lookup_field = 'slug'
 
 class ContactSubmissionViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
     queryset = ContactSubmission.objects.all()
