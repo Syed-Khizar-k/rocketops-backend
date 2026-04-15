@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.text import slugify
+from ckeditor.fields import RichTextField
 
 class TeamMember(models.Model):
     name = models.CharField(max_length=100)
@@ -42,7 +43,8 @@ class Product(models.Model):
     title = models.CharField(max_length=200)
     slug = models.SlugField(unique=True, blank=True, max_length=250)
     description = models.TextField()
-    detailed_description = models.TextField(blank=True, null=True, help_text="Long description for the details page")
+    detailed_description = RichTextField(blank=True, null=True, help_text="Long description for the details page")
+
     image = models.ImageField(upload_to='products/', help_text="Main thumbnail image")
     link = models.URLField()
     display_order = models.PositiveIntegerField(default=0)
