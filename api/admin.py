@@ -207,18 +207,31 @@ REACH_COLORS = {
 @admin.register(ContactSubmission)
 class ContactSubmissionAdmin(admin.ModelAdmin):
     list_display = (
-        'full_name', 'email_display', 'company',
+        'full_name', 'email_display', 'phone_display', 'company',
         'reach_badge', 'country', 'submitted_at',
     )
     list_display_links = ('full_name',)
-    readonly_fields = ('created_at',)
     list_filter = ('reach', 'country', 'created_at')
-    search_fields = ('first_name', 'last_name', 'email', 'company', 'details')
+    search_fields = (
+        'first_name', 'last_name', 'email',
+        'phone_number', 'company', 'details',
+    )
     ordering = ('-created_at',)
     list_per_page = 25
     date_hierarchy = 'created_at'
     actions = [export_as_csv]
 
+    # Detail view shows a single read-only "card" instead of editable inputs.
+    readonly_fields = ('submission_card',)
+    fields = ('submission_card',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return True
+
+    # ── list-view helpers ──────────────────────────────────────
     def full_name(self, obj):
         return format_html(
             '<strong style="color:#e0e0e0;">{} {}</strong>',
@@ -234,6 +247,18 @@ class ContactSubmissionAdmin(admin.ModelAdmin):
         )
     email_display.short_description = 'Email'
     email_display.admin_order_field = 'email'
+
+    def phone_display(self, obj):
+        phone = obj.full_phone
+        if not phone:
+            return format_html('<span style="color:#555;font-size:12px;">—</span>')
+        tel = ''.join(ch for ch in phone if ch.isdigit() or ch == '+')
+        return format_html(
+            '<a href="tel:{}" style="color:#7b68ee;text-decoration:none;'
+            'font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;">{}</a>',
+            tel, phone,
+        )
+    phone_display.short_description = 'Phone'
 
     def reach_badge(self, obj):
         color = REACH_COLORS.get(obj.reach, '#6b7280')
@@ -252,6 +277,83 @@ class ContactSubmissionAdmin(admin.ModelAdmin):
         )
     submitted_at.short_description = 'Submitted'
     submitted_at.admin_order_field = 'created_at'
+
+    # ── detail-view card ───────────────────────────────────────
+    def submission_card(self, obj):
+        if obj is None or obj.pk is None:
+            return format_html('<em style="color:#666;">Submission not saved yet.</em>')
+
+        reach_color = REACH_COLORS.get(obj.reach, '#6b7280')
+        phone = obj.full_phone or '—'
+        phone_tel = ''.join(ch for ch in phone if ch.isdigit() or ch == '+') if phone != '—' else ''
+        phone_html = (
+            format_html(
+                '<a href="tel:{}" style="color:#e0e0e0;text-decoration:none;">{}</a>',
+                phone_tel, phone,
+            )
+            if phone_tel else
+            format_html('<span style="color:#666;">—</span>')
+        )
+
+        def row(label, value_html):
+            return format_html(
+                '<tr>'
+                '<td style="padding:10px 14px;color:#888;font-size:12px;'
+                'text-transform:uppercase;letter-spacing:0.5px;width:160px;'
+                'border-bottom:1px solid #1f1f1f;vertical-align:top;">{}</td>'
+                '<td style="padding:10px 14px;color:#e0e0e0;font-size:14px;'
+                'border-bottom:1px solid #1f1f1f;">{}</td>'
+                '</tr>',
+                label, value_html,
+            )
+
+        rows = format_html(
+            '{}{}{}{}{}{}{}{}{}',
+            row('Name', format_html(
+                '<strong>{} {}</strong>', obj.first_name, obj.last_name,
+            )),
+            row('Email', format_html(
+                '<a href="mailto:{}" style="color:#7b68ee;'
+                'text-decoration:none;">{}</a>',
+                obj.email, obj.email,
+            )),
+            row('Phone', phone_html),
+            row('Company', format_html(
+                '{}', obj.company or format_html('<span style="color:#666;">—</span>'),
+            )),
+            row('Job title', format_html(
+                '{}', obj.job_title or format_html('<span style="color:#666;">—</span>'),
+            )),
+            row('Country', format_html('{}', obj.country)),
+            row('Reach', format_html(
+                '<span style="background:{};color:#fff;padding:3px 12px;'
+                'border-radius:20px;font-size:11px;font-weight:600;">{}</span>',
+                reach_color, obj.reach,
+            )),
+            row('Submitted', format_html(
+                '<span style="color:#aaa;">{}</span>',
+                obj.created_at.strftime('%B %d, %Y · %H:%M'),
+            )),
+            row('Message', format_html(
+                '<div style="background:#0f0f0f;border:1px solid #222;'
+                'border-radius:8px;padding:14px 16px;color:#dcdcdc;'
+                'line-height:1.55;white-space:pre-wrap;font-size:14px;'
+                'max-width:640px;">{}</div>',
+                obj.details,
+            )),
+        )
+
+        return format_html(
+            '<div style="background:#161616;border:1px solid #262626;'
+            'border-radius:12px;padding:8px;max-width:820px;'
+            'box-shadow:0 1px 0 rgba(255,255,255,0.02);">'
+            '<table style="width:100%;border-collapse:collapse;">'
+            '{}'
+            '</table>'
+            '</div>',
+            rows,
+        )
+    submission_card.short_description = 'Submission details'
 
 
 # ─────────────────────────────────────────────

@@ -78,10 +78,18 @@ class ContactSubmission(models.Model):
     company = models.CharField(max_length=100, blank=True, null=True)
     job_title = models.CharField(max_length=100, blank=True, null=True)
     email = models.EmailField()
+    phone_country_code = models.CharField(max_length=8, blank=True, null=True)
+    phone_number = models.CharField(max_length=32, blank=True, null=True)
     country = models.CharField(max_length=100)
     reach = models.CharField(max_length=100)
     details = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def full_phone(self):
+        if self.phone_country_code and self.phone_number:
+            return f"{self.phone_country_code} {self.phone_number}"
+        return self.phone_number or ""
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} - {self.email}"
