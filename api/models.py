@@ -1,6 +1,9 @@
+import re
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 from ckeditor.fields import RichTextField
+from ckeditor_uploader.fields import RichTextUploadingField
 
 class TeamMember(models.Model):
     name = models.CharField(max_length=100)
@@ -176,3 +179,155 @@ class AIProvider(models.Model):
 
     def __str__(self):
         return self.name
+
+
+# ─────────────────────────────────────────────
+#  BLOG  (SEO-optimised content system)
+# ─────────────────────────────────────────────
+class BlogCategory(models.Model):
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(unique=True, blank=True, max_length=140)
+    description = models.CharField(max_length=300, blank=True, default='')
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Blog Category"
+        verbose_name_plural = "Blog Categories"
+        ordering = ['display_order', 'name']
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class Blog(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('published', 'Published'),
+    ]
+
+    # ── Core ────────────────────────────────────────────────
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(unique=True, blank=True, max_length=220,
+                            help_text="URL handle. Auto-generated from the title — change with care once published (affects SEO).")
+    category = models.ForeignKey(
+        BlogCategory, related_name='blogs', null=True, blank=True,
+        on_delete=models.SET_NULL,
+    )
+    excerpt = models.TextField(
+        max_length=320,
+        help_text="Short summary shown on blog cards and used as the fallback meta description.",
+    )
+    cover_image = models.ImageField(
+        upload_to='blogs/covers/',
+        help_text="Primary cover image. Recommended 1600×900 (16:9).",
+    )
+    cover_image_alt = models.CharField(
+        max_length=200, blank=True, default='',
+        help_text="Descriptive alt text for the cover image (SEO + accessibility).",
+    )
+    content = RichTextUploadingField(
+        config_name='blog',
+        help_text="Full article body. Supports headings, images, tables, lists, links and code.",
+    )
+
+    # ── Author ──────────────────────────────────────────────
+    author_name = models.CharField(max_length=120, default='RocketOps Team')
+    author_role = models.CharField(max_length=120, blank=True, default='')
+    author_image = models.ImageField(upload_to='blogs/authors/', blank=True, null=True)
+
+    read_time = models.PositiveIntegerField(
+        default=0,
+        help_text="Estimated read time in minutes. Auto-calculated from content when left at 0.",
+    )
+
+    # ── SEO ─────────────────────────────────────────────────
+    meta_title = models.CharField(
+        max_length=70, blank=True, default='',
+        help_text="SEO page title tag (≤60 chars ideal). Falls back to the title.",
+    )
+    meta_description = models.CharField(
+        max_length=200, blank=True, default='',
+        help_text="SEO meta description (≤160 chars ideal). Falls back to the excerpt.",
+    )
+    focus_keyword = models.CharField(
+        max_length=120, blank=True, default='',
+        help_text="Primary keyword you want this article to rank for.",
+    )
+    keywords = models.TextField(
+        blank=True, default='',
+        help_text="Comma-separated SEO keywords / tags (e.g. fleet management, GCC, automation).",
+    )
+    canonical_url = models.URLField(
+        blank=True, default='',
+        help_text="Override the canonical URL. Leave blank to auto-generate from the slug.",
+    )
+    og_image = models.ImageField(
+        upload_to='blogs/og/', blank=True, null=True,
+        help_text="Social share image (1200×630). Falls back to the cover image.",
+    )
+    noindex = models.BooleanField(
+        default=False,
+        help_text="Tick to hide this article from search engines (noindex).",
+    )
+
+    # ── Publishing ──────────────────────────────────────────
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+    is_featured = models.BooleanField(
+        default=False,
+        help_text="Highlight this article at the top of the blog index.",
+    )
+    display_order = models.PositiveIntegerField(default=0)
+
+    published_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Publish date — drives ordering and structured-data dates. Set automatically when first published.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    views = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['-is_featured', 'display_order', '-published_at', '-created_at']
+        indexes = [
+            models.Index(fields=['status', '-published_at']),
+            models.Index(fields=['slug']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)[:220]
+        # Auto read-time from word count (~200 wpm)
+        if not self.read_time and self.content:
+            words = len(re.sub(r'<[^>]+>', ' ', self.content).split())
+            self.read_time = max(1, round(words / 200))
+        # Stamp publish date on first publish
+        if self.status == 'published' and self.published_at is None:
+            self.published_at = timezone.now()
+        super().save(*args, **kwargs)
+
+    @property
+    def keyword_list(self):
+        return [k.strip() for k in self.keywords.split(',') if k.strip()]
+
+    def __str__(self):
+        return self.title
+
+
+class BlogFAQ(models.Model):
+    blog = models.ForeignKey(Blog, related_name='faqs', on_delete=models.CASCADE)
+    question = models.CharField(max_length=300)
+    answer = models.TextField(help_text="Plain text or simple HTML. Rendered in the FAQ schema for rich results.")
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Blog FAQ"
+        verbose_name_plural = "Blog FAQs"
+        ordering = ['display_order', 'id']
+
+    def __str__(self):
+        return self.question

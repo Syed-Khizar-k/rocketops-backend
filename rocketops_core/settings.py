@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -27,6 +28,13 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# Public URL of the Next.js frontend — used to build "View on site" links in the
+# admin (the blog/product pages live on the frontend app, not on this backend).
+SITE_URL = os.environ.get(
+    'FRONTEND_SITE_URL',
+    'http://localhost:3000' if DEBUG else 'https://rocketops.ai',
+).rstrip('/')
+
 
 # Application definition
 
@@ -41,10 +49,19 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'ckeditor',
+    'ckeditor_uploader',
     'api',
 ]
 
+# ── CKEditor (rich text + image upload + tables) ──────────────────────────────
+CKEDITOR_UPLOAD_PATH = 'blogs/inline/'
+CKEDITOR_IMAGE_BACKEND = 'pillow'
+CKEDITOR_RESTRICT_BY_USER = False
+CKEDITOR_BROWSE_SHOW_DIRS = True
+CKEDITOR_ALLOW_NONIMAGE_FILES = False
+
 CKEDITOR_CONFIGS = {
+    # Compact editor kept for existing Product descriptions.
     'default': {
         'toolbar': 'Custom',
         'toolbar_Custom': [
@@ -54,6 +71,30 @@ CKEDITOR_CONFIGS = {
             ['RemoveFormat', 'Source']
         ],
         'width': '100%',
+    },
+
+    # Full publishing editor for Blog articles — headings, images, tables, code.
+    'blog': {
+        'toolbar': 'Blog',
+        'toolbar_Blog': [
+            {'name': 'styles', 'items': ['Format', 'Font', 'FontSize']},
+            {'name': 'basic', 'items': ['Bold', 'Italic', 'Underline', 'Strike', 'Subscript', 'Superscript', 'RemoveFormat']},
+            {'name': 'colors', 'items': ['TextColor', 'BGColor']},
+            {'name': 'paragraph', 'items': ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', '-', 'Blockquote', '-',
+                                            'JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock']},
+            {'name': 'links', 'items': ['Link', 'Unlink', 'Anchor']},
+            {'name': 'insert', 'items': ['Image', 'Table', 'HorizontalRule', 'SpecialChar', 'CodeSnippet']},
+            {'name': 'tools', 'items': ['Maximize', 'Source']},
+        ],
+        'extraPlugins': ','.join(['uploadimage', 'image2', 'codesnippet', 'widget', 'lineutils']),
+        'codeSnippet_theme': 'monokai_sublime',
+        'height': 520,
+        'width': '100%',
+        'tabSpaces': 4,
+        # Keep semantic, SEO-friendly markup (don't strip ids/classes used for tables/anchors).
+        'allowedContent': True,
+        'removeButtons': '',
+        'format_tags': 'p;h2;h3;h4;pre',
     },
 }
 
@@ -160,13 +201,14 @@ JAZZMIN_SETTINGS = {
     "copyright": "© 2025 RocketOps AI — All rights reserved",
 
     # ── Search ───────────────────────────────────────────────────────────────
-    "search_model": ["api.TeamMember", "api.Service", "api.ContactSubmission"],
+    "search_model": ["api.TeamMember", "api.Service", "api.ContactSubmission", "api.Blog"],
     "user_avatar": None,
 
     # ── Top Navigation ───────────────────────────────────────────────────────
     "topmenu_links": [
         {"name": "Dashboard", "url": "admin:index", "permissions": ["auth.view_user"]},
         {"name": "📬 Inbox", "model": "api.ContactSubmission"},
+        {"name": "✍️ Blog", "model": "api.Blog"},
         {"name": "🌐 View Site", "url": "http://localhost:3000", "new_window": True},
     ],
 
@@ -178,6 +220,8 @@ JAZZMIN_SETTINGS = {
     "order_with_respect_to": [
         "api",
         "api.ContactSubmission",
+        "api.Blog",
+        "api.BlogCategory",
         "api.TeamMember",
         "api.Service",
         "api.Product",
@@ -201,6 +245,9 @@ JAZZMIN_SETTINGS = {
         "api.Testimonial":        "fas fa-quote-left",
         "api.Faq":                "fas fa-question-circle",
         "api.CaseStudy":          "fas fa-briefcase",
+        "api.Blog":               "fas fa-feather-alt",
+        "api.BlogCategory":       "fas fa-folder-open",
+        "api.BlogFAQ":            "fas fa-comments",
     },
     "default_icon_parents":  "fas fa-chevron-right",
     "default_icon_children": "fas fa-dot-circle",
@@ -215,6 +262,12 @@ JAZZMIN_SETTINGS = {
     "changeform_format_overrides": {
         "auth.user": "collapsible",
         "auth.group": "vertical_tabs",
+        # CKEditor + inlines are unreliable inside jazzmin 3.0.4 horizontal_tabs
+        # (the tab toggles don't render, so tabs can't switch and inlines past the
+        # first tab are unreachable). Render these as a single scrolling form so the
+        # rich-text editor and the per-blog FAQ inline always work.
+        "api.blog": "single",
+        "api.blogcategory": "single",
     },
 }
 

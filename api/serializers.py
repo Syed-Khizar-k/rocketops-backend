@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import TeamMember, Service, ServiceFeature, Product, ProductImage, ContactSubmission, CompanyCategory, CompanyLogo, AIProvider, Testimonial, Faq, CaseStudy
+from .models import (
+    TeamMember, Service, ServiceFeature, Product, ProductImage, ContactSubmission,
+    CompanyCategory, CompanyLogo, AIProvider, Testimonial, Faq, CaseStudy,
+    BlogCategory, Blog, BlogFAQ,
+)
 
 
 class TeamMemberSerializer(serializers.ModelSerializer):
@@ -134,3 +138,93 @@ class CaseStudySerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.image.url)
             return obj.image.url
         return None
+
+
+# ─────────────────────────────────────────────
+#  BLOG
+# ─────────────────────────────────────────────
+class _AbsoluteImageMixin:
+    """Shared helper to build absolute media URLs."""
+    def _abs(self, image):
+        if not image:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(image.url) if request else image.url
+
+
+class BlogCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BlogCategory
+        fields = ['id', 'name', 'slug', 'description', 'display_order']
+
+
+class BlogFAQSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BlogFAQ
+        fields = ['id', 'question', 'answer', 'display_order']
+
+
+class BlogListSerializer(_AbsoluteImageMixin, serializers.ModelSerializer):
+    """Lightweight payload for the /blogs index — no heavy body content."""
+    cover_image = serializers.SerializerMethodField()
+    category = serializers.CharField(source='category.name', read_only=True, default=None)
+    category_slug = serializers.CharField(source='category.slug', read_only=True, default=None)
+    keywords = serializers.ListField(source='keyword_list', read_only=True)
+
+    class Meta:
+        model = Blog
+        fields = [
+            'id', 'title', 'slug', 'excerpt', 'cover_image', 'cover_image_alt',
+            'category', 'category_slug', 'author_name', 'author_role',
+            'read_time', 'is_featured', 'keywords', 'published_at',
+        ]
+
+    def get_cover_image(self, obj):
+        return self._abs(obj.cover_image)
+
+
+class BlogDetailSerializer(_AbsoluteImageMixin, serializers.ModelSerializer):
+    """Full payload for /blogs/<slug> — body, FAQs, SEO + related posts."""
+    cover_image = serializers.SerializerMethodField()
+    og_image = serializers.SerializerMethodField()
+    author_image = serializers.SerializerMethodField()
+    category = serializers.CharField(source='category.name', read_only=True, default=None)
+    category_slug = serializers.CharField(source='category.slug', read_only=True, default=None)
+    keywords = serializers.ListField(source='keyword_list', read_only=True)
+    faqs = BlogFAQSerializer(many=True, read_only=True)
+    related = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Blog
+        fields = [
+            'id', 'title', 'slug', 'excerpt', 'content',
+            'cover_image', 'cover_image_alt', 'og_image',
+            'category', 'category_slug',
+            'author_name', 'author_role', 'author_image',
+            'read_time', 'views',
+            'meta_title', 'meta_description', 'focus_keyword', 'keywords',
+            'canonical_url', 'noindex',
+            'is_featured', 'published_at', 'updated_at',
+            'faqs', 'related',
+        ]
+
+    def get_cover_image(self, obj):
+        return self._abs(obj.cover_image)
+
+    def get_og_image(self, obj):
+        return self._abs(obj.og_image) or self._abs(obj.cover_image)
+
+    def get_author_image(self, obj):
+        return self._abs(obj.author_image)
+
+    def get_related(self, obj):
+        qs = Blog.objects.filter(status='published').exclude(pk=obj.pk)
+        if obj.category_id:
+            qs = qs.filter(category_id=obj.category_id)
+        related = list(qs[:3])
+        if len(related) < 3:
+            extra = Blog.objects.filter(status='published').exclude(
+                pk__in=[obj.pk, *[b.pk for b in related]]
+            )[: 3 - len(related)]
+            related += list(extra)
+        return BlogListSerializer(related, many=True, context=self.context).data

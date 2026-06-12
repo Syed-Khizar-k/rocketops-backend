@@ -1,9 +1,14 @@
 import csv
 from django import forms
+from django.conf import settings
 from django.contrib import admin
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 from django.http import HttpResponse
-from .models import TeamMember, Service, ServiceFeature, Product, ProductImage, ContactSubmission, CompanyCategory, CompanyLogo, AIProvider, Testimonial, Faq, CaseStudy
+from .models import (
+    TeamMember, Service, ServiceFeature, Product, ProductImage, ContactSubmission,
+    CompanyCategory, CompanyLogo, AIProvider, Testimonial, Faq, CaseStudy,
+    BlogCategory, Blog, BlogFAQ,
+)
 
 ICON_CHOICES = [
     ('IconGlobal',  'IconGlobal  — Globe / General'),
@@ -136,10 +141,10 @@ class ServiceAdmin(admin.ModelAdmin):
 
     def frontend_link(self, obj):
         return format_html(
-            '<a href="/services/{}" target="_blank" '
+            '<a href="{}/services/{}" target="_blank" rel="noopener" '
             'style="color:#7b68ee;font-size:12px;text-decoration:none;">'
             '↗ View page</a>',
-            obj.slug,
+            settings.SITE_URL, obj.slug,
         )
     frontend_link.short_description = 'Frontend'
 
@@ -443,3 +448,197 @@ class CaseStudyAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'category', 'product')
     search_fields = ('title', 'logo_text', 'category')
     ordering = ('display_order', 'id')
+
+
+# ─────────────────────────────────────────────
+#  BLOG
+# ─────────────────────────────────────────────
+@admin.register(BlogCategory)
+class BlogCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'display_order', 'post_count')
+    list_editable = ('display_order',)
+    prepopulated_fields = {'slug': ('name',)}
+    search_fields = ('name',)
+    ordering = ('display_order', 'name')
+
+    def post_count(self, obj):
+        count = obj.blogs.count()
+        return format_html(
+            '<span style="background:#4f46e5;color:#fff;padding:2px 10px;'
+            'border-radius:20px;font-size:11px;font-weight:600;">{} post{}</span>',
+            count, '' if count == 1 else 's',
+        )
+    post_count.short_description = 'Posts'
+
+
+class BlogFAQInline(admin.StackedInline):
+    """Per-blog FAQs. Add as many as needed — each blog manages its own set,
+    rendered at the end of the article + emitted as FAQPage schema for rich results."""
+    model = BlogFAQ
+    extra = 1
+    fields = ('question', 'answer', 'display_order')
+    verbose_name = "FAQ for this article"
+    verbose_name_plural = "FAQs for this article  ·  add as many as you need (shown at the end of the post + Google FAQ rich snippet)"
+
+
+@admin.register(Blog)
+class BlogAdmin(admin.ModelAdmin):
+    list_display = (
+        'cover_thumb', 'title', 'category', 'status_badge',
+        'featured_badge', 'read_time_badge', 'seo_health', 'published_at', 'frontend_link',
+    )
+    list_display_links = ('title',)
+    list_filter = ('status', 'is_featured', 'category', 'created_at')
+    search_fields = ('title', 'excerpt', 'keywords', 'focus_keyword', 'meta_title')
+    prepopulated_fields = {'slug': ('title',)}
+    ordering = ('-is_featured', 'display_order', '-published_at')
+    list_per_page = 20
+    date_hierarchy = 'published_at'
+    inlines = [BlogFAQInline]
+    actions = [export_as_csv, 'make_published', 'make_draft', 'mark_featured']
+    readonly_fields = ('cover_preview', 'og_preview', 'created_at', 'updated_at', 'views', 'seo_health')
+
+    fieldsets = (
+        ('Article', {
+            'fields': ('title', 'slug', 'category', 'excerpt', 'content'),
+        }),
+        ('Cover image', {
+            'fields': ('cover_image', 'cover_image_alt', 'cover_preview'),
+        }),
+        ('Author', {
+            'classes': ('collapse',),
+            'fields': ('author_name', 'author_role', 'author_image', 'read_time'),
+        }),
+        ('SEO & structured data', {
+            'description': 'Drives the page title tag, meta description, Open Graph, Twitter cards, '
+                           'canonical URL, keywords and JSON-LD schema on the frontend.',
+            'fields': (
+                'seo_health',
+                'meta_title', 'meta_description',
+                'focus_keyword', 'keywords',
+                'canonical_url', 'og_image', 'og_preview', 'noindex',
+            ),
+        }),
+        ('Publishing', {
+            'fields': ('status', 'is_featured', 'display_order', 'published_at',
+                       ('created_at', 'updated_at', 'views')),
+        }),
+    )
+
+    # ── list helpers ────────────────────────────────────────
+    def cover_thumb(self, obj):
+        if obj.cover_image:
+            return format_html(
+                '<img src="{}" style="width:72px;height:46px;border-radius:8px;'
+                'object-fit:cover;border:1px solid #3a3a3a;" />',
+                obj.cover_image.url,
+            )
+        return format_html('<span style="color:#555;font-size:11px;">No cover</span>')
+    cover_thumb.short_description = ''
+
+    def status_badge(self, obj):
+        color = '#10b981' if obj.status == 'published' else '#6b7280'
+        return format_html(
+            '<span style="background:{};color:#fff;padding:2px 10px;'
+            'border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;">{}</span>',
+            color, obj.get_status_display(),
+        )
+    status_badge.short_description = 'Status'
+    status_badge.admin_order_field = 'status'
+
+    def featured_badge(self, obj):
+        if obj.is_featured:
+            return format_html(
+                '<span style="background:#f59e0b;color:#1a1a1a;padding:2px 9px;'
+                'border-radius:20px;font-size:11px;font-weight:700;">★ Featured</span>'
+            )
+        return format_html('<span style="color:#555;">—</span>')
+    featured_badge.short_description = 'Featured'
+
+    def read_time_badge(self, obj):
+        return format_html(
+            '<span style="color:#8b95a4;font-size:12px;">{} min</span>', obj.read_time or '—',
+        )
+    read_time_badge.short_description = 'Read'
+
+    def seo_health(self, obj):
+        """Quick at-a-glance SEO checklist."""
+        checks = [
+            ('Meta title', bool(obj.meta_title) or bool(obj.title)),
+            ('Meta description', bool(obj.meta_description) or bool(obj.excerpt)),
+            ('Focus keyword', bool(obj.focus_keyword)),
+            ('Keywords', bool(obj.keywords)),
+            ('Cover alt text', bool(obj.cover_image_alt)),
+            ('FAQs', obj.pk is not None and obj.faqs.exists()),
+        ]
+        passed = sum(1 for _, ok in checks if ok)
+        total = len(checks)
+        ratio = passed / total
+        color = '#10b981' if ratio >= 0.83 else '#f59e0b' if ratio >= 0.5 else '#ef4444'
+        rows = format_html_join(
+            '',
+            '<div style="display:flex;align-items:center;gap:6px;font-size:12px;'
+            'color:#cbd5e1;margin:2px 0;"><span style="color:{};">{}</span> {}</div>',
+            ((('#10b981' if ok else '#ef4444'), ('✓' if ok else '✕'), label) for label, ok in checks),
+        )
+        return format_html(
+            '<div style="line-height:1.4;">'
+            '<div style="font-weight:700;color:{};margin-bottom:4px;">SEO {}/{}</div>{}'
+            '</div>',
+            color, passed, total, rows,
+        )
+    seo_health.short_description = 'SEO health'
+
+    def cover_preview(self, obj):
+        if obj.cover_image:
+            return format_html(
+                '<img src="{}" style="max-width:420px;max-height:240px;border-radius:10px;'
+                'border:1px solid #2a2a2a;margin-top:6px;" />', obj.cover_image.url,
+            )
+        return format_html('<span style="color:#555;font-size:12px;">No cover uploaded yet.</span>')
+    cover_preview.short_description = 'Cover preview'
+
+    def og_preview(self, obj):
+        img = obj.og_image or obj.cover_image
+        if img:
+            return format_html(
+                '<img src="{}" style="max-width:360px;max-height:189px;border-radius:8px;'
+                'border:1px solid #2a2a2a;margin-top:6px;" /><div style="color:#666;'
+                'font-size:11px;margin-top:4px;">Social share preview (falls back to cover)</div>',
+                img.url,
+            )
+        return format_html('<span style="color:#555;font-size:12px;">No social image.</span>')
+    og_preview.short_description = 'OG preview'
+
+    def frontend_link(self, obj):
+        if obj.status != 'published':
+            return format_html(
+                '<span style="color:#6b7280;font-size:12px;" title="Publish the article to view it on the site.">draft · not live</span>'
+            )
+        return format_html(
+            '<a href="{}/blogs/{}" target="_blank" rel="noopener" '
+            'style="color:#7b68ee;font-size:12px;text-decoration:none;">↗ View</a>',
+            settings.SITE_URL, obj.slug,
+        )
+    frontend_link.short_description = 'Frontend'
+
+    # ── actions ─────────────────────────────────────────────
+    @admin.action(description="✅ Publish selected articles")
+    def make_published(self, request, queryset):
+        from django.utils import timezone
+        for blog in queryset:
+            if blog.published_at is None:
+                blog.published_at = timezone.now()
+            blog.status = 'published'
+            blog.save()
+        self.message_user(request, f"{queryset.count()} article(s) published.")
+
+    @admin.action(description="📝 Move selected to draft")
+    def make_draft(self, request, queryset):
+        updated = queryset.update(status='draft')
+        self.message_user(request, f"{updated} article(s) moved to draft.")
+
+    @admin.action(description="★ Mark selected as featured")
+    def mark_featured(self, request, queryset):
+        updated = queryset.update(is_featured=True)
+        self.message_user(request, f"{updated} article(s) marked as featured.")
