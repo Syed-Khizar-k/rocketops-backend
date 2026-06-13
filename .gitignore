@@ -1,0 +1,19 @@
+# Secrets — never commit
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+db.sqlite3
+
+# Django
+/media/
+/staticfiles/
+
+# Env / tooling
+.venv/
+venv/
+.DS_Store

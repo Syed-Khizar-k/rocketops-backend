@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import PipelineStage, Company, Contact, Deal, Activity
+from .models import PipelineStage, Company, Contact, Deal, Activity, AIActionLog
 
 
 @admin.register(PipelineStage)
@@ -66,3 +66,25 @@ class ActivityAdmin(admin.ModelAdmin):
     list_filter = ('type', 'is_done', 'owner')
     search_fields = ('subject', 'body')
     autocomplete_fields = ('contact', 'deal')
+
+
+@admin.register(AIActionLog)
+class AIActionLogAdmin(admin.ModelAdmin):
+    """Read-only audit trail of everything the AI Command Center has done."""
+    list_display = ('created_at', 'status_badge', 'tool', 'user', 'tool_call_id')
+    list_filter = ('status', 'tool', 'user')
+    search_fields = ('tool', 'tool_call_id')
+    readonly_fields = ('user', 'tool', 'args', 'result', 'status', 'tool_call_id', 'created_at')
+    date_hierarchy = 'created_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Status')
+    def status_badge(self, obj):
+        colors = {'success': '#3DD68C', 'error': '#FF3B3B', 'rejected': '#FFB547'}
+        c = colors.get(obj.status, '#8B95A4')
+        return format_html('<b style="color:{}">{}</b>', c, obj.get_status_display())

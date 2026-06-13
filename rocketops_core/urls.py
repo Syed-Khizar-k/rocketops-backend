@@ -8,6 +8,7 @@ urlpatterns = [
     path('ckeditor/', include('ckeditor_uploader.urls')),
     path('api/', include('api.urls')),
     path('api/crm/', include('crm.urls')),
+    path('api/command-center/', include('api.ai.urls')),
 ]
 
 if settings.DEBUG:

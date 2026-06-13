@@ -262,3 +262,41 @@ class Activity(models.Model):
 
     def __str__(self):
         return self.subject or self.get_type_display()
+
+
+# ─────────────────────────────────────────────
+#  AI Command Center — audit trail
+# ─────────────────────────────────────────────
+class AIActionLog(models.Model):
+    """
+    One row per write action the AI Command Center attempts (executed, failed, or
+    declined by the operator). This is the audit trail for everything the AI does.
+    """
+    STATUS_CHOICES = [
+        ('success', 'Success'),
+        ('error', 'Error'),
+        ('rejected', 'Rejected'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='ai_actions',
+        null=True, blank=True, on_delete=models.SET_NULL,
+    )
+    tool = models.CharField(max_length=64)
+    args = models.JSONField(default=dict, blank=True)
+    result = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='success')
+    tool_call_id = models.CharField(max_length=64, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "AI Action Log"
+        verbose_name_plural = "AI Action Log"
+        indexes = [
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"{self.tool} · {self.status} · {self.created_at:%Y-%m-%d %H:%M}"

@@ -16,6 +16,13 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load secrets from rocketops-backend/.env (gitignored). Never hardcode keys.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / '.env')
+except Exception:
+    pass
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -200,6 +207,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOW_ALL_ORIGINS = True # For development, we allow all. Change in production.
 
+# ── AI Command Center (OpenAI) ────────────────────────────────────────────────
+# Key is read from the environment / .env only — never committed.
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+# Reasoning brain + cheap/fast model. Override per-account via .env if needed.
+OPENAI_COMMAND_MODEL = os.environ.get('OPENAI_COMMAND_MODEL', 'gpt-4o')
+OPENAI_FAST_MODEL = os.environ.get('OPENAI_FAST_MODEL', 'gpt-4o-mini')
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -273,6 +287,7 @@ JAZZMIN_SETTINGS = {
         "crm.Deal":               "fas fa-handshake",
         "crm.Activity":           "fas fa-stream",
         "crm.PipelineStage":      "fas fa-columns",
+        "crm.AIActionLog":        "fas fa-clipboard-list",
     },
     "default_icon_parents":  "fas fa-chevron-right",
     "default_icon_children": "fas fa-dot-circle",
