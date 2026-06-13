@@ -47,11 +47,27 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
     'ckeditor',
     'ckeditor_uploader',
     'api',
+    'crm',
 ]
+
+# ── Django REST Framework ─────────────────────────────────────────────────────
+# The public marketing/blog endpoints stay open (AllowAny default). The CRM
+# endpoints opt into authentication per-view via permission_classes=[IsCRMUser],
+# accepting either a DRF token (frontend app) or a session (browsable/admin).
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+}
 
 # ── CKEditor (rich text + image upload + tables) ──────────────────────────────
 CKEDITOR_UPLOAD_PATH = 'blogs/inline/'
@@ -201,7 +217,7 @@ JAZZMIN_SETTINGS = {
     "copyright": "© 2025 RocketOps AI — All rights reserved",
 
     # ── Search ───────────────────────────────────────────────────────────────
-    "search_model": ["api.TeamMember", "api.Service", "api.ContactSubmission", "api.Blog"],
+    "search_model": ["api.TeamMember", "api.Service", "api.ContactSubmission", "api.Blog", "crm.Contact", "crm.Deal", "crm.Company"],
     "user_avatar": None,
 
     # ── Top Navigation ───────────────────────────────────────────────────────
@@ -209,6 +225,7 @@ JAZZMIN_SETTINGS = {
         {"name": "Dashboard", "url": "admin:index", "permissions": ["auth.view_user"]},
         {"name": "📬 Inbox", "model": "api.ContactSubmission"},
         {"name": "✍️ Blog", "model": "api.Blog"},
+        {"name": "🎯 CRM", "url": "http://localhost:3000/crm", "new_window": True},
         {"name": "🌐 View Site", "url": "http://localhost:3000", "new_window": True},
     ],
 
@@ -248,6 +265,14 @@ JAZZMIN_SETTINGS = {
         "api.Blog":               "fas fa-feather-alt",
         "api.BlogCategory":       "fas fa-folder-open",
         "api.BlogFAQ":            "fas fa-comments",
+        "authtoken":              "fas fa-key",
+        "authtoken.TokenProxy":   "fas fa-key",
+        "crm":                    "fas fa-bullseye",
+        "crm.Company":            "fas fa-building",
+        "crm.Contact":            "fas fa-address-card",
+        "crm.Deal":               "fas fa-handshake",
+        "crm.Activity":           "fas fa-stream",
+        "crm.PipelineStage":      "fas fa-columns",
     },
     "default_icon_parents":  "fas fa-chevron-right",
     "default_icon_children": "fas fa-dot-circle",

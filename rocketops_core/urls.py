@@ -7,6 +7,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('ckeditor/', include('ckeditor_uploader.urls')),
     path('api/', include('api.urls')),
+    path('api/crm/', include('crm.urls')),
 ]
 
 if settings.DEBUG:
